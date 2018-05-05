@@ -47,8 +47,8 @@ RUN rpm --import https://packages.microsoft.com/keys/microsoft.asc && \
       libunwind libicu tar unzip && \
     yum install -y --setopt=tsflags=nodocs --disablerepo=\* \
       --enablerepo=packages-microsoft-com-prod \
-      dotnet-runtime-2.1.0-preview1-26216-03 && \
-    rpm -V libunwind libicu tar unzip dotnet-runtime-2.1.0-preview1-26216-03 && \
+      dotnet-runtime-2.1.0-preview2-26406-04 && \
+    rpm -V libunwind libicu tar unzip dotnet-runtime-2.1.0-preview2-26406-04 && \
     yum clean all -y
 
 # Get prefix path and path to scripts rather than hard-code them in scripts
@@ -58,6 +58,9 @@ ENV CONTAINER_SCRIPTS_PATH=/opt/app-root
 RUN mkdir -p ${DOTNET_APP_PATH} && \
     useradd -u 1001 -r -g 0 -d ${HOME} -s /sbin/nologin \
       -c "Default Application User" default
+
+# workaround for preview issue https://github.com/dotnet/core-setup/issues/4022#issuecomment-386767495
+RUN cp -r /opt/rh/rh-dotnet20/root/usr/lib64/dotnet/shared/* /usr/share/dotnet/shared/
 
 WORKDIR ${DOTNET_APP_PATH}
 COPY default-cmd.sh ${DOTNET_DEFAULT_CMD}

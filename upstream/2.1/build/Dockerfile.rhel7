@@ -39,13 +39,16 @@ RUN INSTALL_PKGS="rh-nodejs6-npm rh-nodejs6-nodejs-nodemon libunwind libicu rsyn
       $INSTALL_PKGS && \
     yum install -y --setopt=tsflags=nodocs --disablerepo=\* \
       --enablerepo=packages-microsoft-com-prod \
-      dotnet-sdk-2.1.300-preview1-008174 && \
-    rpm -V $INSTALL_PKGS dotnet-sdk-2.1.300-preview1-008174 && \
+      dotnet-sdk-2.1.300-preview2-008530-2.1.300 && \
+    rpm -V $INSTALL_PKGS dotnet-sdk-2.1.300-preview2-008530-2.1.300 && \
     yum clean all -y
 
 # Directory with the sources is set as the working directory.
 RUN mkdir /opt/app-root/src
 WORKDIR /opt/app-root/src
+
+# workaround for preview issue https://github.com/dotnet/core-setup/issues/4022#issuecomment-386767495
+RUN cp -r /opt/rh/rh-dotnet20/root/usr/lib64/dotnet/shared/* /usr/share/dotnet/shared/
 
 # Since $HOME is set to /opt/app-root, the yum install may have created config
 # directories (such as ~/.pki/nssdb) there. These will be owned by root and can
