@@ -1,0 +1,85 @@
+FROM dotnet-runtime-2.2.0-preview1-35029
+# This image provides a .NET Core 2.2 preview environment you can use to run your .NET
+# applications.
+
+# Default to UTF-8 file.encoding
+ENV PATH=/opt/app-root/src/.local/bin:/opt/app-root/src/bin:/opt/app-root/node_modules/.bin:${PATH} \
+    STI_SCRIPTS_PATH=/usr/libexec/s2i
+
+LABEL io.k8s.description="Platform for building and running .NET Core 2.2 preview applications" \
+      io.k8s.display-name=".NET Core 2.2 preview" \
+      io.openshift.s2i.scripts-url=image:///usr/libexec/s2i \
+      io.openshift.tags="builder,.net,dotnet,dotnetcore,rh-dotnet22-pre" \
+      io.openshift.expose-services="8080:http" \
+      io.s2i.scripts-url=image:///usr/libexec/s2i
+
+# Labels consumed by Red Hat build service
+LABEL name="dotnet/dotnet-sdk-2.2.100-preview1-009349" \
+      com.redhat.component="rh-dotnet22-preview1-009349-sdk-docker" \
+      version="2.2.100-preview1-009349" \
+      architecture="x86_64"
+
+# Labels consumed by Eclipse JBoss OpenShift plugin
+LABEL com.redhat.dev-mode="DEV_MODE:false" \
+      com.redhat.deployments-dir="/opt/app-root/src"
+
+# Switch to root for package installs
+USER 0
+
+# Copy the S2I scripts from the specific language image to $STI_SCRIPTS_PATH.
+COPY ./s2i/bin/ /usr/libexec/s2i
+
+RUN INSTALL_PKGS="rh-nodejs6-npm rh-nodejs6-nodejs-nodemon libunwind libicu rsync" && \
+    yum update -y --setopt=tsflags=nodocs --disablerepo=\* \
+      --enablerepo=rhel-7-server-rpms,rhel-server-rhscl-7-rpms && \
+    yum install -y --setopt=tsflags=nodocs --disablerepo=\* \
+      --enablerepo=rhel-7-server-rpms,rhel-server-rhscl-7-rpms \
+      $INSTALL_PKGS && \
+    yum clean all -y
+
+ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
+    LC_ALL=en_US.UTF-8 \
+    LANG=en_US.UTF-8
+
+# Install .NET Core SDK
+ENV DOTNET_SDK_VERSION 2.2.100-preview1-009349
+
+RUN curl -L -o dotnet.tar.gz https://download.microsoft.com/download/5/9/2/592E5073-8394-4A95-8F48-54080F0F1555/dotnet-sdk-2.2.100-preview1-009349-linux-x64.tar.gz \
+    && dotnet_sha512='0584ff770e1e8808126c74cd36c6014cbc95320ff797a79159e809aac72dc6a84bde932dcc4fbb4b281fa253302d4979ce2bd709647fe1f4dfa1e47799ef7184' \
+    && echo "$dotnet_sha512  dotnet.tar.gz" | sha512sum -c - \
+    && rm -rf /usr/share/dotnet \
+    && rm /usr/bin/dotnet \
+    && mkdir -p /usr/share/dotnet \
+    && tar -zxf dotnet.tar.gz -C /usr/share/dotnet \
+    && rm dotnet.tar.gz \
+    && ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet
+
+# Enable correct mode for dotnet watch (only mode supported in a container)
+ENV DOTNET_USE_POLLING_FILE_WATCHER=true \ 
+    # Skip extraction of XML docs - generally not useful within an image/container - helps perfomance
+    NUGET_XMLDOC_MODE=skip
+
+# Trigger first run experience by running arbitrary cmd to populate local package cache
+RUN dotnet help
+
+# Directory with the sources is set as the working directory.
+RUN mkdir /opt/app-root/src
+WORKDIR /opt/app-root/src
+
+# Since $HOME is set to /opt/app-root, the yum install may have created config
+# directories (such as ~/.pki/nssdb) there. These will be owned by root and can
+# cause actions that work on all of /opt/app-root to fail. So we need to fix
+# the permissions on those too.
+RUN chown -R 1001:0 /opt/app-root && fix-permissions /opt/app-root
+
+ENV ENABLED_COLLECTIONS="$ENABLED_COLLECTIONS rh-nodejs6"
+
+# For backwards compatibility, s2i builds default to the oldest sdk in the image.
+# We keep the patch at '0', the latest patch version is automatically picked up.
+ENV DOTNET_SDK_BASE_VERSION=2.2.0
+
+# Run container by default as user with id 1001 (default)
+USER 1001
+
+# Set the default CMD to print the usage of the language image.
+CMD /usr/libexec/s2i/usage
